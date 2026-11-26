@@ -2,35 +2,48 @@
 # CLI
 # ==============================================================================
 # PURPOSE:
-# Interpret commands directly from the public methods of this class.
+# Interpret commands directly from controller classes and their public methods.
 #
 # RESPONSIBILITY BOUNDARIES:
-# Owns: Command names, signatures, help and argument binding.
-# Delegates: Library acquisition and execution to the installed Almasi loader.
+# Owns: Controller discovery, help and argument binding.
+# Delegates: Each operation to its controller.
 # ==============================================================================
 
 import argparse
+import importlib
 import inspect
+import os
+import pkgutil
 import sys
-
-from almasi._libraries import _Libraries
 
 
 class Cli:
-
-	_TEST_ENTRY = 'root/test.py'
 
 	# ======================================================================
 	# PRIVATE METHODS
 	# ======================================================================
 
-	# Derive the entire command interface from public bound methods.
+	# Discover controller modules beside this entry, without a command registry.
 	# ----------------------------------------------------------------------
-	def _dispatch(self, arguments: list[str]):
-		parser   = argparse.ArgumentParser(prog='almasi')
-		commands = parser.add_subparsers(dest='_command', required=True)
+	def _get_controllers(self):
+		directory   = os.path.join(os.path.dirname(__file__), 'root', 'controllers')
+		package     = f'{__package__}.root.controllers' if __package__ else 'root.controllers'
+		controllers = {}
 
-		for name, method in inspect.getmembers(self, inspect.ismethod):
+		for module in pkgutil.iter_modules([directory]):
+			if not module.ispkg and not module.name.startswith('_'):
+				implementation = importlib.import_module(f'{package}.{module.name}')
+				class_name     = ''.join(part.capitalize() for part in module.name.split('_'))
+				controllers[module.name] = getattr(implementation, class_name)()
+
+		return controllers
+
+	# Derive each method's arguments and help from its public signature.
+	# ----------------------------------------------------------------------
+	def _add_methods(self, parser, controller):
+		commands = parser.add_subparsers(dest='_method', required=True)
+
+		for name, method in inspect.getmembers(controller, inspect.ismethod):
 			if not name.startswith('_'):
 				description = inspect.getdoc(method)
 				command     = commands.add_parser(name, help=description, description=description)
@@ -41,30 +54,22 @@ class Cli:
 					else:
 						command.add_argument(parameter.name, type=parameter.annotation)
 
-		values = vars(parser.parse_args(arguments))
-		method = getattr(self, values.pop('_command'))
+	# Bind the selected controller and method before invoking domain behavior.
+	# ----------------------------------------------------------------------
+	def _dispatch(self, arguments: list[str]):
+		parser      = argparse.ArgumentParser(prog='almasi')
+		commands    = parser.add_subparsers(dest='_controller', required=True)
+		controllers = self._get_controllers()
+
+		for name, controller in controllers.items():
+			description = inspect.getdoc(type(controller))
+			command     = commands.add_parser(name, help=description, description=description)
+			self._add_methods(command, controller)
+
+		values     = vars(parser.parse_args(arguments))
+		controller = controllers[values.pop('_controller')]
+		method     = getattr(controller, values.pop('_method'))
 		method(**values)
-
-	# ======================================================================
-	# PUBLIC METHODS
-	# ======================================================================
-
-	# Execute the selected library without interpreting its own arguments.
-	# ----------------------------------------------------------------------
-	def run(self, library: str, arguments: list[str]):
-		'Run a library and forward its remaining arguments unchanged.'
-		_Libraries.run(library, arguments)
-
-	# Execute the standard test entry from the acquired library checkout.
-	# ----------------------------------------------------------------------
-	def test(self, library: str, arguments: list[str]):
-		'Run a library test suite and forward its remaining arguments unchanged.'
-		_Libraries.run(
-			library,
-			arguments,
-			entry = self._TEST_ENTRY,
-			cwd   = _Libraries.get_path(library)
-		)
 
 
 if __name__ == '__main__':
