@@ -2,30 +2,36 @@
 
 The dynamically acquired command interface of [Almasi](https://github.com/WordWield/almasi).
 The loader acquires and updates this library before executing its entry.
-No separate CLI installation or registry is necessary.
-
-The public methods of `Cli` in [cli.py](cli.py) are the sole source of command
-names, parameter names and help. Run `almasi --help` for the live command
-interface. Required scalar parameters are positional on the command line and
-bound by name when calling the method; a final `list[str]` parameter receives
-the remaining arguments unchanged. The current methods accept a library's
-canonical snake_case name and its remaining string arguments. Method
-docstrings supply command help. Private methods are never commands.
-
-The run operation uses the selected library's ordinary standalone entry
-and preserves the caller's working directory. The test operation executes
-the library's existing `root/test.py` from its checkout directory. Both
-delegate acquisition, dependency installation and process replacement to
-the loader. Neither returns on successful execution; the executed script
-determines the exit status. A library without the required entry fails.
-
-Examples (requires the loader supporting dynamic CLI dispatch):
 
 ```sh
-almasi run hub demo apodgorny
-almasi test o
-almasi run hub --help
+almasi <controller> <method> <args>
+almasi library run hub demo apodgorny
+almasi library test o
+almasi library run hub --help
+almasi project --help
 ```
+
+Controller modules live under `root/controllers/`. A module's snake_case
+filename defines its controller name; it contains a corresponding PascalCase
+class with a parameterless constructor. Python package discovery finds these
+modules automatically. Public bound methods define commands, method docstrings
+supply help, scalar annotations define positional argument types, and a final
+`list[str]` parameter receives remaining arguments unchanged. Private methods
+are not exposed.
+
+The library controller preserves existing execution behavior: run executes the
+selected library's standalone entry from the caller's directory; test executes
+`root/test.py` from that library's checkout. Both delegate acquisition,
+dependency installation and process replacement to the loader. Neither returns
+on successful execution.
+
+The project controller declares `run <project>`, `delete <project>`,
+`rename <project> <new_name>`, and `reset <project>`. All four exit with an
+explicit not-implemented error and make no changes. Their lifecycle behavior
+will be implemented by Hub.
+
+The previous flat `almasi run` and `almasi test` commands are now
+`almasi library run` and `almasi library test`.
 
 The loader's `almasi --version` remains an offline installer diagnostic.
 The CLI is trusted executable code acquired using the same Git policy

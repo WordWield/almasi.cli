@@ -15,8 +15,9 @@ import unittest
 from contextlib    import redirect_stdout, redirect_stderr
 from unittest.mock import Mock, patch
 
-from almasi            import cli
-from almasi._libraries import _Libraries
+from almasi                              import cli
+from almasi._libraries                   import _Libraries
+from almasi.cli.root.controllers.library import Library
 
 
 _sample = Mock()
@@ -38,14 +39,14 @@ class TestCli(unittest.TestCase):
 	# ----------------------------------------------------------------------
 	def test_run(self):
 		with patch.object(_Libraries, 'run') as run:
-			cli.Cli()._dispatch(['run', 'hub', 'demo', 'Word Wield', '--flag'])
+			cli.Cli()._dispatch(['library', 'run', 'hub', 'demo', 'Word Wield', '--flag'])
 			run.assert_called_once_with('hub', ['demo', 'Word Wield', '--flag'])
 
 	# Test execution must use the library's existing test entry.
 	# ----------------------------------------------------------------------
 	def test_test(self):
 		with patch.object(_Libraries, 'run') as run:
-			cli.Cli()._dispatch(['test', 'o'])
+			cli.Cli()._dispatch(['library', 'test', 'o'])
 			run.assert_called_once_with('o', [], entry='root/test.py', cwd=_Libraries.get_path('o'))
 
 	# New public methods automatically become commands with named binding.
@@ -53,8 +54,8 @@ class TestCli(unittest.TestCase):
 	def test_public_api(self):
 		_sample.reset_mock()
 
-		with patch.object(cli.Cli, 'sample', sample, create=True):
-			cli.Cli()._dispatch(['sample', 'value', '--flag'])
+		with patch.object(Library, 'sample', sample, create=True):
+			cli.Cli()._dispatch(['library', 'sample', 'value', '--flag'])
 
 		_sample.assert_called_once_with(name='value', arguments=['--flag'])
 
@@ -62,7 +63,7 @@ class TestCli(unittest.TestCase):
 	# ----------------------------------------------------------------------
 	def test_private_api(self):
 		with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
-			cli.Cli()._dispatch(['_dispatch'])
+			cli.Cli()._dispatch(['library', '_dispatch'])
 
 		self.assertEqual(error.exception.code, 2)
 
@@ -75,4 +76,34 @@ class TestCli(unittest.TestCase):
 			cli.Cli()._dispatch(['--help'])
 
 		self.assertEqual(error.exception.code, 0)
-		self.assertIn('{run,test}', output.getvalue())
+		self.assertIn('{library,project}', output.getvalue())
+
+	# Discover project operations without invoking any lifecycle mechanism.
+	# ----------------------------------------------------------------------
+	def test_project_help(self):
+		output = io.StringIO()
+
+		with redirect_stdout(output), self.assertRaises(SystemExit) as error:
+			cli.Cli()._dispatch(['project', '--help'])
+
+		self.assertEqual(error.exception.code, 0)
+		self.assertIn('{delete,rename,reset,run}', output.getvalue())
+
+	# Reserved operations fail explicitly until Hub owns their behavior.
+	# ----------------------------------------------------------------------
+	def test_project_commands(self):
+		commands = [
+			['run', 'demo'],
+			['delete', 'demo'],
+			['rename', 'demo', 'next'],
+			['reset', 'demo']
+		]
+
+		with patch.object(_Libraries, 'run') as run:
+			for arguments in commands:
+				with self.subTest(arguments=arguments), self.assertRaises(SystemExit) as error:
+					cli.Cli()._dispatch(['project', *arguments])
+
+				self.assertEqual(error.exception.code, f'project {arguments[0]}: not implemented')
+
+			run.assert_not_called()

@@ -2,35 +2,52 @@
 # CLI
 # ==============================================================================
 # PURPOSE:
-# Interpret commands directly from the public methods of this class.
+# Interpret controller commands directly from public method signatures.
 #
 # RESPONSIBILITY BOUNDARIES:
-# Owns: Command names, signatures, help and argument binding.
-# Delegates: Library acquisition and execution to the installed Almasi loader.
+# Owns: Controller and method selection, help and argument binding.
+# Delegates: Command behavior to the selected controller.
 # ==============================================================================
 
 import argparse
+import importlib
 import inspect
+import pkgutil
 import sys
-
-from almasi._libraries import _Libraries
 
 
 class Cli:
-
-	_TEST_ENTRY = 'root/test.py'
 
 	# ======================================================================
 	# PRIVATE METHODS
 	# ======================================================================
 
-	# Derive the entire command interface from public bound methods.
+	# Discover controller modules through the entry's Python package.
 	# ----------------------------------------------------------------------
-	def _dispatch(self, arguments: list[str]):
-		parser   = argparse.ArgumentParser(prog='almasi')
+	def _get_controllers(self):
+		package_name = 'root.controllers'
+		if __package__:
+			package_name = f'{__package__}.{package_name}'
+
+		package     = importlib.import_module(package_name)
+		controllers = {}
+
+		for module in pkgutil.iter_modules(package.__path__):
+			if not module.ispkg and not module.name.startswith('_'):
+				name         = module.name
+				class_name   = ''.join(part.capitalize() for part in name.split('_'))
+				controller   = importlib.import_module(f'{package_name}.{name}')
+
+				controllers[name] = getattr(controller, class_name)()
+
+		return controllers
+
+	# Derive command parameters and help from the actual bound methods.
+	# ----------------------------------------------------------------------
+	def _add_methods(self, parser, controller):
 		commands = parser.add_subparsers(dest='_command', required=True)
 
-		for name, method in inspect.getmembers(self, inspect.ismethod):
+		for name, method in inspect.getmembers(controller, inspect.ismethod):
 			if not name.startswith('_'):
 				description = inspect.getdoc(method)
 				command     = commands.add_parser(name, help=description, description=description)
@@ -41,30 +58,20 @@ class Cli:
 					else:
 						command.add_argument(parameter.name, type=parameter.annotation)
 
-		values = vars(parser.parse_args(arguments))
-		method = getattr(self, values.pop('_command'))
+	# Bind the selected controller method without interpreting its arguments.
+	# ----------------------------------------------------------------------
+	def _dispatch(self, arguments: list[str]):
+		parser      = argparse.ArgumentParser(prog='almasi')
+		commands    = parser.add_subparsers(dest='_controller', required=True)
+		controllers = self._get_controllers()
+
+		for name, controller in controllers.items():
+			self._add_methods(commands.add_parser(name), controller)
+
+		values     = vars(parser.parse_args(arguments))
+		controller = controllers[values.pop('_controller')]
+		method     = getattr(controller, values.pop('_command'))
 		method(**values)
-
-	# ======================================================================
-	# PUBLIC METHODS
-	# ======================================================================
-
-	# Execute the selected library without interpreting its own arguments.
-	# ----------------------------------------------------------------------
-	def run(self, library: str, arguments: list[str]):
-		'Run a library and forward its remaining arguments unchanged.'
-		_Libraries.run(library, arguments)
-
-	# Execute the standard test entry from the acquired library checkout.
-	# ----------------------------------------------------------------------
-	def test(self, library: str, arguments: list[str]):
-		'Run a library test suite and forward its remaining arguments unchanged.'
-		_Libraries.run(
-			library,
-			arguments,
-			entry = self._TEST_ENTRY,
-			cwd   = _Libraries.get_path(library)
-		)
 
 
 if __name__ == '__main__':
