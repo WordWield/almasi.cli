@@ -2,14 +2,14 @@
 # PROJECT
 # ==============================================================================
 # PURPOSE:
-# Declare the project commands before their Hub implementation.
+# Expose named project lifecycle operations on the local command line.
 #
 # RESPONSIBILITY BOUNDARIES:
-# Owns: Project command signatures and unavailable-operation diagnostics.
-# Delegates: Future project lifecycle operations to Hub.
+# Owns: Project command signatures and argument forwarding.
+# Delegates: Project lifecycle to Hub through the existing library launcher.
 # ==============================================================================
 
-import sys
+from almasi._libraries import _Libraries
 
 
 class Project:
@@ -18,26 +18,20 @@ class Project:
 	# PUBLIC METHODS
 	# ======================================================================
 
-	# Reserve the CLI contract without changing project state.
+	# Run the project in Hub's standalone application context.
 	# ----------------------------------------------------------------------
-	def run(self, project: str):
-		'Start a named project. Not implemented yet.'
-		sys.exit('project run: not implemented')
+	def run(self, user: str, project: str):
+		'Create or run a named project.'
+		_Libraries.run('hub', ['run', user, project])
 
-	# Reserve the CLI contract without changing project state.
+	# Permanently remove the stopped project's repositories and local workspace.
 	# ----------------------------------------------------------------------
-	def delete(self, project: str):
-		'Delete a named project. Not implemented yet.'
-		sys.exit('project delete: not implemented')
+	def delete(self, user: str, project: str):
+		'Permanently delete a project. Stop Hub, App and all Sources first.'
+		_Libraries.run('hub', ['delete', user, project])
 
-	# Reserve the CLI contract without changing project state.
+	# Move a stopped project without replacing its repositories or ontology.
 	# ----------------------------------------------------------------------
-	def rename(self, project: str, new_name: str):
-		'Rename a named project. Not implemented yet.'
-		sys.exit('project rename: not implemented')
-
-	# Reserve the CLI contract without changing project state.
-	# ----------------------------------------------------------------------
-	def reset(self, project: str):
-		'Restore a named project to its defaults. Not implemented yet.'
-		sys.exit('project reset: not implemented')
+	def rename(self, user: str, project: str, new_name: str):
+		'Rename a project. Stop Hub, App and all Sources first.'
+		_Libraries.run('hub', ['rename', user, project, new_name])

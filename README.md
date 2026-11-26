@@ -5,7 +5,8 @@ The loader acquires and updates this library before executing its entry.
 
 ```sh
 almasi <controller> <method> <args>
-almasi library run hub demo apodgorny
+almasi library run hub run apodgorny demo
+almasi project run apodgorny demo
 almasi library test o
 almasi library run hub --help
 almasi project --help
@@ -25,10 +26,20 @@ selected library's standalone entry from the caller's directory; test executes
 dependency installation and process replacement to the loader. Neither returns
 on successful execution.
 
-The project controller declares `run <project>`, `delete <project>`,
-`rename <project> <new_name>`, and `reset <project>`. All four exit with an
-explicit not-implemented error and make no changes. Their lifecycle behavior
-will be implemented by Hub.
+The project controller forwards the following commands to the standalone Hub
+entry, where the Project service owns their implementation:
+
+```sh
+almasi project run <user> <project>
+almasi project delete <user> <project>
+almasi project rename <user> <project> <new_name>
+```
+
+Delete permanently removes the cloud repositories and local workspace including
+ontology. Rename preserves repository history and local state. The caller must
+stop Hub, App and all Sources before either operation; no stopped-state check
+is performed. There is no reset operation. Use the coordinated Hub update and
+read its [Project API](https://github.com/WordWield/almasi.hub/blob/master/docs/project.md).
 
 The previous flat `almasi run` and `almasi test` commands are now
 `almasi library run` and `almasi library test`.
