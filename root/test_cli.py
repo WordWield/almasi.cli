@@ -87,23 +87,30 @@ class TestCli(unittest.TestCase):
 			cli.Cli()._dispatch(['project', '--help'])
 
 		self.assertEqual(error.exception.code, 0)
-		self.assertIn('{delete,rename,reset,run}', output.getvalue())
+		self.assertIn('{delete,rename,run}', output.getvalue())
 
-	# Reserved operations fail explicitly until Hub owns their behavior.
+	# Forward project identity and lifecycle command unchanged to Hub.
 	# ----------------------------------------------------------------------
 	def test_project_commands(self):
 		commands = [
-			['run', 'demo'],
-			['delete', 'demo'],
-			['rename', 'demo', 'next'],
-			['reset', 'demo']
+			['run', 'alice', 'demo'],
+			['delete', 'alice', 'demo'],
+			['rename', 'alice', 'demo', 'next']
 		]
 
 		with patch.object(_Libraries, 'run') as run:
 			for arguments in commands:
-				with self.subTest(arguments=arguments), self.assertRaises(SystemExit) as error:
+				with self.subTest(arguments=arguments):
+					run.reset_mock()
 					cli.Cli()._dispatch(['project', *arguments])
+					run.assert_called_once_with('hub', arguments)
 
-				self.assertEqual(error.exception.code, f'project {arguments[0]}: not implemented')
+	# Reset is not part of the project lifecycle API.
+	# ----------------------------------------------------------------------
+	def test_project_reset_is_absent(self):
+		with patch.object(_Libraries, 'run') as run, \
+			redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+			cli.Cli()._dispatch(['project', 'reset', 'alice', 'demo'])
 
-			run.assert_not_called()
+		self.assertEqual(error.exception.code, 2)
+		run.assert_not_called()
