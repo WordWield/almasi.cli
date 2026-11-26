@@ -89,28 +89,28 @@ class TestCli(unittest.TestCase):
 		self.assertEqual(error.exception.code, 0)
 		self.assertIn('{delete,rename,run}', output.getvalue())
 
-	# Forward project identity and lifecycle command unchanged to Hub.
+	# Bind project-first CLI arguments and forward Hub's user-first contract.
 	# ----------------------------------------------------------------------
 	def test_project_commands(self):
 		commands = [
-			['run', 'alice', 'demo'],
-			['delete', 'alice', 'demo'],
-			['rename', 'alice', 'demo', 'next']
+			(['run', 'demo', 'alice'], ['run', 'alice', 'demo']),
+			(['delete', 'demo', 'alice'], ['delete', 'alice', 'demo']),
+			(['rename', 'demo', 'alice', 'next'], ['rename', 'alice', 'demo', 'next'])
 		]
 
 		with patch.object(_Libraries, 'run') as run:
-			for arguments in commands:
+			for arguments, expected in commands:
 				with self.subTest(arguments=arguments):
 					run.reset_mock()
 					cli.Cli()._dispatch(['project', *arguments])
-					run.assert_called_once_with('hub', arguments)
+					run.assert_called_once_with('hub', expected)
 
 	# Reset is not part of the project lifecycle API.
 	# ----------------------------------------------------------------------
 	def test_project_reset_is_absent(self):
 		with patch.object(_Libraries, 'run') as run, \
 			redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
-			cli.Cli()._dispatch(['project', 'reset', 'alice', 'demo'])
+			cli.Cli()._dispatch(['project', 'reset', 'demo', 'alice'])
 
 		self.assertEqual(error.exception.code, 2)
 		run.assert_not_called()

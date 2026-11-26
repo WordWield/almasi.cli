@@ -6,7 +6,7 @@ The loader acquires and updates this library before executing its entry.
 ```sh
 almasi <controller> <method> <args>
 almasi library run hub run apodgorny demo
-almasi project run apodgorny demo
+almasi project run demo apodgorny
 almasi library test o
 almasi library run hub --help
 almasi project --help
@@ -27,12 +27,14 @@ dependency installation and process replacement to the loader. Neither returns
 on successful execution.
 
 The project controller forwards the following commands to the standalone Hub
-entry, where the Project service owns their implementation:
+entry, where the Project service owns their implementation. The CLI takes the
+project name first, followed by the user; the standalone Hub entry remains
+user-first:
 
 ```sh
-almasi project run <user> <project>
-almasi project delete <user> <project>
-almasi project rename <user> <project> <new_name>
+almasi project run <project> <user>
+almasi project delete <project> <user>
+almasi project rename <project> <user> <new_name>
 ```
 
 Delete permanently removes the cloud repositories and local workspace including
